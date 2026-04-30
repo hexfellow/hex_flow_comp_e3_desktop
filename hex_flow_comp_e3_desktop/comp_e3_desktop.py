@@ -175,6 +175,8 @@ class HexFlowCompE3Desktop:
 
     def __exit_process(self):
         try:
+            self.__node.pub("record", build_hex_bool(ts_ns=ns_now(),
+                                                     data=False))
             self.__node.info(f"[{self.__name}]: move to exit position")
             rate = HexRate(self.__rate_hz)
             while self.__node.is_working():
