@@ -23,16 +23,18 @@
 
 ### Core lifecycle
 
-1. **Init phase** — On startup, the node commands both arms and grippers (left and right) to move to a configurable stable position, waiting until both arms arrive within a configurable error threshold.
-2. **Work phase** — Once both arms are at the stable position, the node switches to **compensation mode**, computing and publishing Jacobian-based gravity compensation torques using `HexDynUtilY6` dynamics, keeping both arms in a gravity-compensated state ready for dual-arm manipulation.
-3. **Exit phase** — On shutdown (triggered by pressing the `q` key or `Ctrl+C`), the node commands both arms back to the stable position before exiting cleanly.
+1. **Init phase** — On startup, the node commands both arms and grippers (left and right) to move to a configurable stable position using position control, waiting until both arms arrive within a configurable error threshold.
+2. **Work phase** — Once both arms are at the stable position, the node switches to **compensation mode**, computing a feedforward gravity-compensation torque via the Jacobian and dynamics model per arm. This counteracts the gravitational load of a configurable extra mass, making both arms backdrivable and freely movable.
+3. **Exit phase** — On shutdown (triggered by the `q` key, `s` key, or `Ctrl+C`), the node returns both arms to the stable position before exiting cleanly.
 
 ## What problem it solves
 
+- **Gravity compensation for backdrivability**: Computes `τ = Jᵀ · F_ext` using the robot's dynamics model per arm, where `F_ext` accounts for gravity acting on a configurable extra mass (e.g., a payload or end effector). This allows both arms to be freely manipulated by hand in a safe, gravity-compensated state.
 - **Out-of-the-box dual-arm control flow**: Provides a standard lifecycle (init → work → exit) for E3 Desktop, eliminating the need to write boilerplate dual-arm state machine logic.
-- **Graceful shutdown**: Handles both keyboard-triggered (`q` key) and signal-based (`Ctrl+C`) shutdown, automatically returning both arms to a safe stable position.
+- **Graceful shutdown**: Handles both keyboard-triggered (`q` key, `s` key) and signal-based (`Ctrl+C`) shutdown, automatically returning both arms to a safe stable position.
 - **Flexible deployment**: Supports both real robot hardware (via `hex_flow_node_robot`) and MuJoCo simulation (via `hex_flow_node_mujoco`) — just swap the robot source with zero code changes to the node.
-- **Keyboard teleop integration**: Subscribes to keyboard events via `hex_flow_node_teleop`, enabling a `q`-key shutdown mechanism.
+- **Integrated data recording**: Publishes a `record` boolean topic that can be consumed by `hex_flow_node_data` for MCAP-based data logging, toggled by the `s` key.
+- **Keyboard teleop integration**: Subscribes to keyboard events via `hex_flow_node_teleop`, enabling `q`-key shutdown and `s`-key recording toggle.
 - **Camera integration**: Ready for head-mounted (Realsense) and left/right USB camera nodes from `hex_flow_node_camera`.
 
 ## Target users
@@ -45,7 +47,7 @@
 
 | Node                              | Description                              | Publishes                                                         | Subscribes                                                              |
 | --------------------------------- | ---------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `hex-flow-comp-e3-desktop`    | E3 Desktop dual-arm gravity compensation node     | `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, `right_grip_ctrl` | `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state`, `keys` |
+| `hex-flow-comp-e3-desktop`    | E3 Desktop dual-arm gravity compensation node     | `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, `right_grip_ctrl`, `record` | `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state`, `keys` |
 
 ## Architecture diagram
 
@@ -55,16 +57,21 @@
 │ (real or MuJoCo)     │ ────────────────────────────────────> │  e3-desktop              │
 │                      │ <──────────────────────────────────── │                          │
 │  ┌──────────────┐    │   left_arm_ctrl / right_arm_ctrl      └──────────────────────────┘
-│  │  Left Arm    │    │   left_grip_ctrl / right_grip_ctrl             ▲
-│  │  (Archer Y6) │    │                                                │ keys
-│  ├──────────────┤    │                                                │
-│  │  Right Arm   │    │                                        ┌───────┴─────────┐
-│  │  (Archer Y6) │    │                                        │ teleop_keyboard │
-│  └──────────────┘    │                                        └─────────────────┘
-└──────────────────────┘
+│  │  Left Arm    │    │   left_grip_ctrl / right_grip_ctrl             ▲           │
+│  │  (Archer Y6) │    │                                                │ keys      │ record
+│  ├──────────────┤    │                                                │           │
+│  │  Right Arm   │    │                                        ┌───────┴─────────┐ │
+│  │  (Archer Y6) │    │                                        │ teleop_keyboard │ │
+│  └──────────────┘    │                                        └─────────────────┘ │
+└──────────────────────┘                                                           │
+                                                                                   │
+                                                                                   ▼
+                                                                           ┌────────────────┐
+                                                                           │  data_record   │
+                                                                           └────────────────┘
 ```
 
-The node sits between a robot source (either `hex-flow-robot-archer-y6` for real hardware or `hex-flow-mujoco-e3-desktop` for MuJoCo simulation) and a teleop keyboard node. It subscribes to robot state topics for both arms and keyboard events, and publishes control commands back to the robot source for both arms.
+The node sits between a robot source (either `hex-flow-robot-archer-y6` for real hardware or `hex-flow-mujoco-e3-desktop` for MuJoCo simulation) and a teleop keyboard node. It subscribes to robot state topics for both arms and keyboard events, publishes control commands back to the robot source for both arms, and emits a `record` trigger for the data recording node.
 
 # 📦 Installation
 
@@ -119,10 +126,11 @@ The package provides the `default_comp_e3_desktop_node` helper function that ret
 ## Real robot launch
 
 ```python
+import os
 from hex_flow_core import LaunchConfig
 from hex_flow_node_robot import default_robot_archer_y6_node
 from hex_flow_node_teleop import default_teleop_keyboard_node
-from hex_flow_node_camera import default_cam_berxel_node, default_cam_usb_node
+from hex_flow_node_data import default_data_record_node
 from hex_flow_comp_e3_desktop import default_comp_e3_desktop_node
 
 config = LaunchConfig(
@@ -131,6 +139,9 @@ config = LaunchConfig(
     log_to_file=True,
     save_path="/tmp/real_template.yml",
 )
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+RECORD_PATH = f"{SCRIPT_DIR}/record_data"
 
 nodes = {
     "left_archer_y6":
@@ -187,7 +198,8 @@ nodes = {
         arm_stable_pos="0.0,-1.5,3.0,0.07,0.0,0.0",
         grip_stable_pos="0.5",
         arrive_threshold=0.06,
-        err_threshold=0.02,
+        arm_err_threshold=0.02,
+        grip_err_threshold=0.02,
         required=True,
         hidden=False,
         remap_dict={
@@ -200,6 +212,27 @@ nodes = {
             "left_grip_ctrl": "left_archer_y6/grip_ctrl",
             "right_grip_ctrl": "right_archer_y6/grip_ctrl",
             "keys": "teleop_keyboard/teleop_keyboard",
+            "record": "comp_e3_desktop/record",
+        },
+    ),
+    "data_record":
+    default_data_record_node(
+        name="data_record",
+        record_path=RECORD_PATH,
+        foxglove_host="127.0.0.1",
+        foxglove_port=8765,
+        start_cnt=0,
+        required=False,
+        remap_dict={
+            "left_arm_state": "left_archer_y6/arm_state",
+            "right_arm_state": "right_archer_y6/arm_state",
+            "left_grip_state": "left_archer_y6/grip_state",
+            "right_grip_state": "right_archer_y6/grip_state",
+            "left_arm_ctrl": "left_archer_y6/arm_ctrl",
+            "right_arm_ctrl": "right_archer_y6/arm_ctrl",
+            "left_grip_ctrl": "left_archer_y6/grip_ctrl",
+            "right_grip_ctrl": "right_archer_y6/grip_ctrl",
+            "record": "comp_e3_desktop/record",
         },
     ),
 }
@@ -211,9 +244,11 @@ print(config.export())
 ## MuJoCo simulation launch
 
 ```python
+import os
 from hex_flow_core import LaunchConfig
 from hex_flow_node_mujoco import default_mujoco_e3_desktop_node
 from hex_flow_node_teleop import default_teleop_keyboard_node
+from hex_flow_node_data import default_data_record_node
 from hex_flow_comp_e3_desktop import default_comp_e3_desktop_node
 
 config = LaunchConfig(
@@ -222,6 +257,9 @@ config = LaunchConfig(
     log_to_file=True,
     save_path="/tmp/sim_template.yml",
 )
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+RECORD_PATH = f"{SCRIPT_DIR}/record_data"
 
 nodes = {
     "mujoco_e3_desktop":
@@ -266,7 +304,8 @@ nodes = {
         arm_stable_pos="0.0,-1.5,3.0,0.07,0.0,0.0",
         grip_stable_pos="0.5",
         arrive_threshold=0.06,
-        err_threshold=0.02,
+        arm_err_threshold=0.02,
+        grip_err_threshold=0.02,
         required=True,
         hidden=False,
         remap_dict={
@@ -279,6 +318,27 @@ nodes = {
             "left_grip_ctrl": "mujoco_e3_desktop/left_grip_ctrl",
             "right_grip_ctrl": "mujoco_e3_desktop/right_grip_ctrl",
             "keys": "teleop_keyboard/teleop_keyboard",
+            "record": "comp_e3_desktop/record",
+        },
+    ),
+    "data_record":
+    default_data_record_node(
+        name="data_record",
+        record_path=RECORD_PATH,
+        foxglove_host="127.0.0.1",
+        foxglove_port=8765,
+        start_cnt=0,
+        required=False,
+        remap_dict={
+            "left_arm_state": "mujoco_e3_desktop/left_arm_state",
+            "right_arm_state": "mujoco_e3_desktop/right_arm_state",
+            "left_grip_state": "mujoco_e3_desktop/left_grip_state",
+            "right_grip_state": "mujoco_e3_desktop/right_grip_state",
+            "left_arm_ctrl": "mujoco_e3_desktop/left_arm_ctrl",
+            "right_arm_ctrl": "mujoco_e3_desktop/right_arm_ctrl",
+            "left_grip_ctrl": "mujoco_e3_desktop/left_grip_ctrl",
+            "right_grip_ctrl": "mujoco_e3_desktop/right_grip_ctrl",
+            "record": "comp_e3_desktop/record",
         },
     ),
 }
@@ -300,7 +360,8 @@ print(config.export())
 | `grip_kp`          | `str`   | `"10.0"`                                          | Gripper stiffness gain                              |
 | `grip_kd`          | `str`   | `"0.5"`                                           | Gripper damping gain                                |
 | `arrive_threshold` | `float` | `0.06`                                           | Joint position threshold (rad) to consider arrived  |
-| `err_threshold`    | `float` | `0.02`                                           | Position error limit for safety (lim_err)           |
+| `arm_err_threshold`  | `float` | `0.02`                                           | Arm position error limit for safety (`lim_err`)       |
+| `grip_err_threshold` | `float` | `0.02`                                           | Gripper position error limit for safety (`lim_err`)   |
 | `extra_mass`       | `float` | `0.1`                                            | Extra payload mass for gravity compensation (kg)   |
 | `required`         | `bool`  | `True`                                           | Required for launch                                 |
 | `hidden`           | `bool`  | `False`                                          | Hidden node                                         |
@@ -395,6 +456,7 @@ nodes:
       left_grip_ctrl: left_archer_y6/grip_ctrl
       right_grip_ctrl: right_archer_y6/grip_ctrl
       keys: teleop_keyboard/teleop_keyboard
+      record: comp_e3_desktop/record
     env:
       RATE_HZ: "500"
       ARM_STABLE_POS: "0.0,-1.5,3.0,0.07,0.0,0.0"
@@ -404,7 +466,28 @@ nodes:
       GRIP_KP: "10.0"
       GRIP_KD: "0.5"
       ARRIVE_THRESHOLD: "0.06"
-      ERR_THRESHOLD: "0.02"
+      ARM_ERR_THRESHOLD: "0.02"
+      GRIP_ERR_THRESHOLD: "0.02"
+
+  - name: data_record
+    build: pip install hex_flow_node_data
+    run: hex-flow-data-record
+    required: false
+    hidden: false
+    remap:
+      left_arm_state: left_archer_y6/arm_state
+      right_arm_state: right_archer_y6/arm_state
+      left_grip_state: left_archer_y6/grip_state
+      right_grip_state: right_archer_y6/grip_state
+      left_arm_ctrl: left_archer_y6/arm_ctrl
+      right_arm_ctrl: right_archer_y6/arm_ctrl
+      left_grip_ctrl: left_archer_y6/grip_ctrl
+      right_grip_ctrl: right_archer_y6/grip_ctrl
+      record: comp_e3_desktop/record
+    env:
+      RECORD_PATH: "example/record_data"
+      FOXGLOVE_HOST: "127.0.0.1"
+      FOXGLOVE_PORT: "8765"
 ```
 
 ### MuJoCo simulation (500 Hz)
@@ -462,6 +545,7 @@ nodes:
       left_grip_ctrl: mujoco_e3_desktop/left_grip_ctrl
       right_grip_ctrl: mujoco_e3_desktop/right_grip_ctrl
       keys: teleop_keyboard/teleop_keyboard
+      record: comp_e3_desktop/record
     env:
       RATE_HZ: "500"
       ARM_STABLE_POS: "0.0,-1.5,3.0,0.07,0.0,0.0"
@@ -471,7 +555,28 @@ nodes:
       GRIP_KP: "10.0"
       GRIP_KD: "0.5"
       ARRIVE_THRESHOLD: "0.06"
-      ERR_THRESHOLD: "0.02"
+      ARM_ERR_THRESHOLD: "0.02"
+      GRIP_ERR_THRESHOLD: "0.02"
+
+  - name: data_record
+    build: pip install hex_flow_node_data
+    run: hex-flow-data-record
+    required: false
+    hidden: false
+    remap:
+      left_arm_state: mujoco_e3_desktop/left_arm_state
+      right_arm_state: mujoco_e3_desktop/right_arm_state
+      left_grip_state: mujoco_e3_desktop/left_grip_state
+      right_grip_state: mujoco_e3_desktop/right_grip_state
+      left_arm_ctrl: mujoco_e3_desktop/left_arm_ctrl
+      right_arm_ctrl: mujoco_e3_desktop/right_arm_ctrl
+      left_grip_ctrl: mujoco_e3_desktop/left_grip_ctrl
+      right_grip_ctrl: mujoco_e3_desktop/right_grip_ctrl
+      record: comp_e3_desktop/record
+    env:
+      RECORD_PATH: "example/record_data"
+      FOXGLOVE_HOST: "127.0.0.1"
+      FOXGLOVE_PORT: "8765"
 ```
 
 # Message Types (FlatBuffer)
@@ -511,6 +616,7 @@ Each arm (left and right) has its own dedicated topic channels.
 | `ts_ns`     | `int64`   | Timestamp in nanoseconds                 |
 | `action`    | `uint8`   | Action type (press / release)            |
 | `key_q`     | `bool`    | Q key state                              |
+| `key_s`     | `bool`    | S key state                              |
 | `key_w`     | `bool`    | W key state                              |
 | ...         | `...`     | ...                                      |
 
@@ -542,7 +648,14 @@ Each arm (left and right) has its own dedicated topic channels.
 | `mit_kd`    | `float64` | Damping gains                                  |
 | `lim_err`   | `float64` | Position error limit for safety                |
 
-Schema: [`msgs/msg_robot/arm_ctrl.fbs`](https://github.com/hexfellow/hex_util_msg/blob/main/msgs/msg_robot/arm_ctrl.fbs) | [`msgs/msg_robot/grip_ctrl.fbs`](https://github.com/hexfellow/hex_util_msg/blob/main/msgs/msg_robot/grip_ctrl.fbs)
+### `record` — `HexBool`
+
+| Field   | Type    | Description                             |
+| ------- | ------- | --------------------------------------- |
+| `ts_ns` | `int64` | Timestamp in nanoseconds                |
+| `data`  | `bool`  | Recording trigger (toggle start/stop)   |
+
+Schema: [`msgs/msg_robot/arm_ctrl.fbs`](https://github.com/hexfellow/hex_util_msg/blob/main/msgs/msg_robot/arm_ctrl.fbs) | [`msgs/msg_robot/grip_ctrl.fbs`](https://github.com/hexfellow/hex_util_msg/blob/main/msgs/msg_robot/grip_ctrl.fbs) | [`msgs/msg_basic/bool.fbs`](https://github.com/hexfellow/hex_util_msg/blob/main/msgs/msg_basic/bool.fbs)
 
 # Environment Variables
 
@@ -566,24 +679,33 @@ Schema: [`msgs/msg_robot/arm_ctrl.fbs`](https://github.com/hexfellow/hex_util_ms
 | `GRIP_KP`          | `str`   | `"10.0"`                                          | Gripper stiffness gain                              |
 | `GRIP_KD`          | `str`   | `"0.5"`                                           | Gripper damping gain                                |
 | `ARRIVE_THRESHOLD` | `float` | `0.06`                                           | Joint position threshold (rad) to consider arrived  |
-| `ERR_THRESHOLD`    | `float` | `0.02`                                           | Position error limit for safety (`lim_err`)          |
+| `ARM_ERR_THRESHOLD`  | `float` | `0.02`                                           | Arm position error limit for safety (`lim_err`)       |
+| `GRIP_ERR_THRESHOLD` | `float` | `0.02`                                           | Gripper position error limit for safety (`lim_err`)   |
 | `EXTRA_MASS`       | `float` | `0.1`                                            | Extra payload mass (kg) for gravity compensation    |
 
 # Architecture
 
-The node node implements a three-phase lifecycle for dual-arm control:
+The compensation controller node implements a three-phase lifecycle for dual-arm control:
 
-1. **Parameter construction** — reads environment variables and configures the node parameters: control rate, stable positions, PID gains, and arrival/error thresholds.
+1. **Parameter construction** — reads environment variables and configures the node parameters: control rate, stable positions, PID gains, extra mass, and arrival/error thresholds.
 
-2. **Subscription setup** — subscribes to `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state` (from the robot source), and `keys` (from the teleop keyboard node). It publishes `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, and `right_grip_ctrl` commands back to the robot source.
+2. **Dynamics initialization** — creates two `HexDynUtilY6` dynamics utilities (left and right) using the `archer_y6_empty` URDF model. Computes the gravity vector for the configured extra mass: `F_ext = -mass · g`, which will be used during the work phase to generate feedforward compensation torque.
 
-3. **Init phase** — On `start()`, a teleop monitor thread begins polling the `keys` topic at 100 Hz. The main loop then enters the init phase, publishing position-mode (`HexArmCtrlMode.pos`) commands targeting the configured `arm_stable_pos` and `grip_stable_pos` for **both** arms independently. It waits until all joints of **both** arms are within `arrive_threshold` radians of the target.
+3. **Subscription setup** — subscribes to `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state` (from the robot source), and `keys` (from the teleop keyboard node). It publishes `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, `right_grip_ctrl` commands back to the robot source, and a `record` boolean topic for the data recording node.
 
-4. **Work phase** — Once both arms have arrived at the stable position, the node switches to compensation mode (`HexArmCtrlMode.comp`), computing gravity compensation torques via Jacobian transpose from `HexDynUtilY6` dynamics per arm. The extra torque `tau = J^T * (-mass * gravity)` is published each cycle, keeping both arms in a gravity-compensated, freely movable state.
+4. **Init phase** — On `start()`, a teleop monitor thread begins polling the `keys` topic at 100 Hz. The main loop then enters the init phase, publishing position-mode (`HexArmCtrlMode.pos`) commands targeting the configured `arm_stable_pos` and `grip_stable_pos` for **both** arms independently. It waits until all joints of **both** arms are within `arrive_threshold` radians of the target.
 
-5. **Exit phase** — When the `q` key is pressed (detected by the teleop thread) or `Ctrl+C` is received, the node re-enters the position-mode control loop, driving both arms back to `arm_stable_pos` / `grip_stable_pos` before stopping the node. This ensures a safe, repeatable shutdown.
+5. **Work phase** — Once both arms have arrived at the stable position, the node switches to compensation mode (`HexArmCtrlMode.comp`). In this phase, it:
+   - Reads the current joint positions `q` and velocities `dq` from both arms' `arm_state`
+   - Computes the Jacobian `J` (position part, 3×6) using the robot's dynamics model per arm
+   - Calculates the feedforward gravity-compensation torque: `τ = Jᵀ · F_ext`
+   - Publishes the compensation command with `mit_tau` set to the computed torque, and zero position/velocity targets, stiffness, and damping
 
-This architecture decouples the node's lifecycle logic from the underlying robot hardware interface — the node interacts solely through Zenoh topics, making it compatible with both real E3 Desktop hardware and MuJoCo simulation without code changes.
+   This keeps both arms in a gravity-compensated, freely movable state — the extra mass payload is counteracted so the arms can be backdriven by hand.
+
+6. **Teleop recording** — The teleop thread also handles the `s` key as a toggle for recording. Each press of `s` publishes a `HexBool` on the `record` topic, which the `data_record` node subscribes to for starting/stopping MCAP data logging.
+
+7. **Exit phase** — When the `q` key is pressed (detected by the teleop thread) or `Ctrl+C` is received, the node re-enters the position-mode control loop, driving both arms back to `arm_stable_pos` / `grip_stable_pos` before stopping the node. This ensures a safe, repeatable shutdown.
 
 # 📄 License
 

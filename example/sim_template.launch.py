@@ -6,6 +6,7 @@
 # Date  : 2026-04-28
 ################################################################
 
+import os
 from hex_flow_core import LaunchConfig
 from hex_flow_node_mujoco import default_mujoco_e3_desktop_node
 from hex_flow_node_teleop import default_teleop_keyboard_node
@@ -18,6 +19,9 @@ config = LaunchConfig(
     log_to_file=True,
     save_path="/tmp/sim_comp.yml",
 )
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+RECORD_PATH = f"{SCRIPT_DIR}/record_data"
 
 nodes = {
     "mujoco_e3_desktop":
@@ -62,7 +66,8 @@ nodes = {
         arm_stable_pos="0.0,-1.5,3.0,0.07,0.0,0.0",
         grip_stable_pos="0.5",
         arrive_threshold=0.06,
-        err_threshold=0.02,
+        arm_err_threshold=0.02,
+        grip_err_threshold=0.02,
         extra_mass=0.1,
         required=True,
         hidden=False,
@@ -82,7 +87,7 @@ nodes = {
     "data_record":
     default_data_record_node(
         name="data_record",
-        record_path="/tmp/record_data",
+        record_path=RECORD_PATH,
         foxglove_host="127.0.0.1",
         foxglove_port=8765,
         start_cnt=0,
