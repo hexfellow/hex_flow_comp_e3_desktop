@@ -1,15 +1,15 @@
-<h1 align="center">HEX FLOW TEMPLATE E3 DESKTOP</h1>
+<h1 align="center">HEX FLOW COMP E3 DESKTOP</h1>
 
 <p align="center">
-    <a href="https://github.com/hexfellow/hex_flow_template_e3_desktop/stargazers">
-        <img src="https://img.shields.io/github/stars/hexfellow/hex_flow_template_e3_desktop?style=flat-square&logo=github" />
+    <a href="https://github.com/hexfellow/hex_flow_comp_e3_desktop/stargazers">
+        <img src="https://img.shields.io/github/stars/hexfellow/hex_flow_comp_e3_desktop?style=flat-square&logo=github" />
     </a>
-    <a href="https://github.com/hexfellow/hex_flow_template_e3_desktop/forks">
-        <img src="https://img.shields.io/github/forks/hexfellow/hex_flow_template_e3_desktop?style=flat-square&logo=github" />
+    <a href="https://github.com/hexfellow/hex_flow_comp_e3_desktop/forks">
+        <img src="https://img.shields.io/github/forks/hexfellow/hex_flow_comp_e3_desktop?style=flat-square&logo=github" />
     </a>
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-    <a href="https://github.com/hexfellow/hex_flow_template_e3_desktop/issues">
-        <img src="https://img.shields.io/github/issues/hexfellow/hex_flow_template_e3_desktop?style=flat-square&logo=github" />
+    <a href="https://github.com/hexfellow/hex_flow_comp_e3_desktop/issues">
+        <img src="https://img.shields.io/github/issues/hexfellow/hex_flow_comp_e3_desktop?style=flat-square&logo=github" />
     </a>
 </p>
 
@@ -17,21 +17,21 @@
 
 # 📖 Overview
 
-## What is `hex_flow_template_e3_desktop`
+## What is `hex_flow_comp_e3_desktop`
 
-`hex_flow_template_e3_desktop` provides a ready-to-use E3 Desktop control template built on the hex-flow framework. It orchestrates the dual-arm E3 Desktop robot system — consisting of two Archer Y6 arms with grippers — through a three-phase lifecycle (**init**, **work**, and **exit**). The template seamlessly integrates with real or simulated E3 Desktop hardware alongside keyboard teleoperation and camera nodes.
+`hex_flow_comp_e3_desktop` provides a ready-to-use E3 Desktop gravity compensation node built on the hex-flow framework. It orchestrates the dual-arm E3 Desktop robot system — consisting of two Archer Y6 arms with grippers — through a three-phase lifecycle (**init**, **work**, and **exit**). The node seamlessly integrates with real or simulated E3 Desktop hardware alongside keyboard teleoperation and camera nodes.
 
 ### Core lifecycle
 
-1. **Init phase** — On startup, the template commands both arms and grippers (left and right) to move to a configurable stable position, waiting until both arms arrive within a configurable error threshold.
-2. **Work phase** — Once both arms are at the stable position, the template switches to **compensation mode**, publishing zero-torque compensation commands every control cycle for each arm, keeping both arms in a gravity-compensated state ready for dual-arm manipulation.
-3. **Exit phase** — On shutdown (triggered by pressing the `q` key or `Ctrl+C`), the template commands both arms back to the stable position before exiting cleanly.
+1. **Init phase** — On startup, the node commands both arms and grippers (left and right) to move to a configurable stable position, waiting until both arms arrive within a configurable error threshold.
+2. **Work phase** — Once both arms are at the stable position, the node switches to **compensation mode**, computing and publishing Jacobian-based gravity compensation torques using `HexDynUtilY6` dynamics, keeping both arms in a gravity-compensated state ready for dual-arm manipulation.
+3. **Exit phase** — On shutdown (triggered by pressing the `q` key or `Ctrl+C`), the node commands both arms back to the stable position before exiting cleanly.
 
 ## What problem it solves
 
 - **Out-of-the-box dual-arm control flow**: Provides a standard lifecycle (init → work → exit) for E3 Desktop, eliminating the need to write boilerplate dual-arm state machine logic.
 - **Graceful shutdown**: Handles both keyboard-triggered (`q` key) and signal-based (`Ctrl+C`) shutdown, automatically returning both arms to a safe stable position.
-- **Flexible deployment**: Supports both real robot hardware (via `hex_flow_node_robot`) and MuJoCo simulation (via `hex_flow_node_mujoco`) — just swap the robot source with zero code changes to the template.
+- **Flexible deployment**: Supports both real robot hardware (via `hex_flow_node_robot`) and MuJoCo simulation (via `hex_flow_node_mujoco`) — just swap the robot source with zero code changes to the node.
 - **Keyboard teleop integration**: Subscribes to keyboard events via `hex_flow_node_teleop`, enabling a `q`-key shutdown mechanism.
 - **Camera integration**: Ready for head-mounted (Realsense) and left/right USB camera nodes from `hex_flow_node_camera`.
 
@@ -45,26 +45,26 @@
 
 | Node                              | Description                              | Publishes                                                         | Subscribes                                                              |
 | --------------------------------- | ---------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `hex-flow-template-e3-desktop`    | E3 Desktop dual-arm control template     | `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, `right_grip_ctrl` | `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state`, `keys` |
+| `hex-flow-comp-e3-desktop`    | E3 Desktop dual-arm gravity compensation node     | `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, `right_grip_ctrl` | `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state`, `keys` |
 
 ## Architecture diagram
 
 ```
-┌──────────────────────┐   left_arm_state / right_arm_state   ┌──────────────────────────┐
-│   Robot Source       │   left_grip_state / right_grip_state  │  hex-flow-template-      │
+┌──────────────────────┐   left_arm_state / right_arm_state    ┌──────────────────────────┐
+│   Robot Source       │   left_grip_state / right_grip_state  │  hex-flow-comp-          │
 │ (real or MuJoCo)     │ ────────────────────────────────────> │  e3-desktop              │
 │                      │ <──────────────────────────────────── │                          │
 │  ┌──────────────┐    │   left_arm_ctrl / right_arm_ctrl      └──────────────────────────┘
-│  │  Left Arm    │    │   left_grip_ctrl / right_grip_ctrl              ▲
+│  │  Left Arm    │    │   left_grip_ctrl / right_grip_ctrl             ▲
 │  │  (Archer Y6) │    │                                                │ keys
 │  ├──────────────┤    │                                                │
-│  │  Right Arm   │    │                                        ┌───────┴────────┐
+│  │  Right Arm   │    │                                        ┌───────┴─────────┐
 │  │  (Archer Y6) │    │                                        │ teleop_keyboard │
-│  └──────────────┘    │                                        └────────────────┘
+│  └──────────────┘    │                                        └─────────────────┘
 └──────────────────────┘
 ```
 
-The template sits between a robot source (either `hex-flow-robot-archer-y6` for real hardware or `hex-flow-mujoco-e3-desktop` for MuJoCo simulation) and a teleop keyboard node. It subscribes to robot state topics for both arms and keyboard events, and publishes control commands back to the robot source for both arms.
+The node sits between a robot source (either `hex-flow-robot-archer-y6` for real hardware or `hex-flow-mujoco-e3-desktop` for MuJoCo simulation) and a teleop keyboard node. It subscribes to robot state topics for both arms and keyboard events, and publishes control commands back to the robot source for both arms.
 
 # 📦 Installation
 
@@ -76,7 +76,7 @@ The template sits between a robot source (either `hex-flow-robot-archer-y6` for 
   - `hex_flow_node_robot` >= 0.0.0, < 0.1.0
   - `hex_flow_node_teleop` >= 0.0.0, < 0.1.0
   - `hex_flow_node_mujoco` >= 0.0.0, < 0.1.0
-  - `hex_flow_node_camera` >= 0.0.0, < 0.1.0
+  - `hex_flow_node_data` >= 0.0.0, < 0.1.0
 
 ## Install `hex-flow-cli`
 
@@ -96,7 +96,7 @@ curl -fsSL https://raw.githubusercontent.com/hexfellow/hex-flow/main/install.sh 
 
 For other systems, please install `zenohd` yourself, then run the [install script](https://raw.githubusercontent.com/hexfellow/hex-flow/main/install.sh).
 
-## Install `hex-flow-template-e3-desktop` from source
+## Install `hex-flow-comp-e3-desktop` from source
 
 We provide a [venv.sh](venv.sh) script to create a virtual environment with all dependencies installed. However, you need to install uv first. For uv installation, please refer to `uv` official [installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
@@ -107,14 +107,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Then you can use [venv.sh](venv.sh) to create a virtual environment with all dependencies installed:
 
 ```bash
-git clone https://github.com/hexfellow/hex_flow_template_e3_desktop.git
-cd hex_flow_template_e3_desktop
+git clone https://github.com/hexfellow/hex_flow_comp_e3_desktop.git
+cd hex_flow_comp_e3_desktop
 ./venv.sh
 ```
 
 # 📑 Python Config API
 
-The package provides the `default_template_e3_desktop_node` helper function that returns a `NodeConfig` object for easy integration into your `LaunchConfig`.
+The package provides the `default_comp_e3_desktop_node` helper function that returns a `NodeConfig` object for easy integration into your `LaunchConfig`.
 
 ## Real robot launch
 
@@ -123,7 +123,7 @@ from hex_flow_core import LaunchConfig
 from hex_flow_node_robot import default_robot_archer_y6_node
 from hex_flow_node_teleop import default_teleop_keyboard_node
 from hex_flow_node_camera import default_cam_berxel_node, default_cam_usb_node
-from hex_flow_template_e3_desktop import default_template_e3_desktop_node
+from hex_flow_comp_e3_desktop import default_comp_e3_desktop_node
 
 config = LaunchConfig(
     local_only=True,
@@ -180,9 +180,9 @@ nodes = {
         hidden=True,
         remap_dict={"teleop_keyboard": "teleop_keyboard/teleop_keyboard"},
     ),
-    "template_e3_desktop":
-    default_template_e3_desktop_node(
-        name="template_e3_desktop",
+    "comp_e3_desktop":
+    default_comp_e3_desktop_node(
+        name="comp_e3_desktop",
         rate_hz=500.0,
         arm_stable_pos="0.0,-1.5,3.0,0.07,0.0,0.0",
         grip_stable_pos="0.5",
@@ -214,7 +214,7 @@ print(config.export())
 from hex_flow_core import LaunchConfig
 from hex_flow_node_mujoco import default_mujoco_e3_desktop_node
 from hex_flow_node_teleop import default_teleop_keyboard_node
-from hex_flow_template_e3_desktop import default_template_e3_desktop_node
+from hex_flow_comp_e3_desktop import default_comp_e3_desktop_node
 
 config = LaunchConfig(
     local_only=True,
@@ -259,9 +259,9 @@ nodes = {
         hidden=True,
         remap_dict={"teleop_keyboard": "teleop_keyboard/teleop_keyboard"},
     ),
-    "template_e3_desktop":
-    default_template_e3_desktop_node(
-        name="template_e3_desktop",
+    "comp_e3_desktop":
+    default_comp_e3_desktop_node(
+        name="comp_e3_desktop",
         rate_hz=500.0,
         arm_stable_pos="0.0,-1.5,3.0,0.07,0.0,0.0",
         grip_stable_pos="0.5",
@@ -287,11 +287,11 @@ config.set_nodes(nodes)
 print(config.export())
 ```
 
-### `default_template_e3_desktop_node`
+### `default_comp_e3_desktop_node`
 
 | Parameter          | Type    | Default                                          | Description                                         |
 | ------------------ | ------- | ------------------------------------------------ | --------------------------------------------------- |
-| `name`             | `str`   | `"template_e3_desktop"`                          | Node name and remap prefix                          |
+| `name`             | `str`   | `"comp_e3_desktop"`                          | Node name and remap prefix                          |
 | `rate_hz`          | `float` | `500.0`                                          | Control loop rate in Hz                             |
 | `arm_stable_pos`   | `str`   | `"0.0,-1.5,3.0,0.07,0.0,0.0"`                   | Arm stable joint position (6-DOF comma-separated, applied to both arms) |
 | `grip_stable_pos`  | `str`   | `"0.5"`                                          | Gripper stable position (applied to both grippers)  |
@@ -301,6 +301,7 @@ print(config.export())
 | `grip_kd`          | `str`   | `"0.5"`                                           | Gripper damping gain                                |
 | `arrive_threshold` | `float` | `0.06`                                           | Joint position threshold (rad) to consider arrived  |
 | `err_threshold`    | `float` | `0.02`                                           | Position error limit for safety (lim_err)           |
+| `extra_mass`       | `float` | `0.1`                                            | Extra payload mass for gravity compensation (kg)   |
 | `required`         | `bool`  | `True`                                           | Required for launch                                 |
 | `hidden`           | `bool`  | `False`                                          | Hidden node                                         |
 | `remap_dict`       | `dict`  | `None`                                           | Custom remap; defaults to `{robot_source}/*`        |
@@ -379,10 +380,11 @@ nodes:
     env:
       DEVICE_PATH: ""
 
-  - name: template_e3_desktop
-    build: pip install hex_flow_template_e3_desktop
-    run: hex-flow-template-e3-desktop
+  - name: comp_e3_desktop
+    build: pip install hex_flow_comp_e3_desktop
+    run: hex-flow-comp-e3-desktop
     required: true
+    hidden: false
     remap:
       left_arm_state: left_archer_y6/arm_state
       right_arm_state: right_archer_y6/arm_state
@@ -445,10 +447,11 @@ nodes:
     env:
       DEVICE_PATH: ""
 
-  - name: template_e3_desktop
-    build: pip install hex_flow_template_e3_desktop
-    run: hex-flow-template-e3-desktop
+  - name: comp_e3_desktop
+    build: pip install hex_flow_comp_e3_desktop
+    run: hex-flow-comp-e3-desktop
     required: true
+    hidden: false
     remap:
       left_arm_state: mujoco_e3_desktop/left_arm_state
       right_arm_state: mujoco_e3_desktop/right_arm_state
@@ -551,7 +554,7 @@ Schema: [`msgs/msg_robot/arm_ctrl.fbs`](https://github.com/hexfellow/hex_util_ms
 | `HEX_FLOW_REMAP`     | `str` | `{}`            | JSON dict for topic remapping (handled by `hex_flow_core`) |
 | `RUST_LOG`           | `str` | `info`          | Log level for `envlog`                                     |
 
-## Template Node (`hex-flow-template-e3-desktop`)
+## Comp Node (`hex-flow-comp-e3-desktop`)
 
 | Variable           | Type    | Default                                          | Description                                         |
 | ------------------ | ------- | ------------------------------------------------ | --------------------------------------------------- |
@@ -563,23 +566,24 @@ Schema: [`msgs/msg_robot/arm_ctrl.fbs`](https://github.com/hexfellow/hex_util_ms
 | `GRIP_KP`          | `str`   | `"10.0"`                                          | Gripper stiffness gain                              |
 | `GRIP_KD`          | `str`   | `"0.5"`                                           | Gripper damping gain                                |
 | `ARRIVE_THRESHOLD` | `float` | `0.06`                                           | Joint position threshold (rad) to consider arrived  |
-| `ERR_THRESHOLD`    | `float` | `0.02`                                           | Position error limit for safety (`lim_err`)         |
+| `ERR_THRESHOLD`    | `float` | `0.02`                                           | Position error limit for safety (`lim_err`)          |
+| `EXTRA_MASS`       | `float` | `0.1`                                            | Extra payload mass (kg) for gravity compensation    |
 
 # Architecture
 
-The template node implements a three-phase lifecycle for dual-arm control:
+The node node implements a three-phase lifecycle for dual-arm control:
 
-1. **Parameter construction** — reads environment variables and configures the template parameters: control rate, stable positions, PID gains, and arrival/error thresholds.
+1. **Parameter construction** — reads environment variables and configures the node parameters: control rate, stable positions, PID gains, and arrival/error thresholds.
 
 2. **Subscription setup** — subscribes to `left_arm_state`, `right_arm_state`, `left_grip_state`, `right_grip_state` (from the robot source), and `keys` (from the teleop keyboard node). It publishes `left_arm_ctrl`, `right_arm_ctrl`, `left_grip_ctrl`, and `right_grip_ctrl` commands back to the robot source.
 
 3. **Init phase** — On `start()`, a teleop monitor thread begins polling the `keys` topic at 100 Hz. The main loop then enters the init phase, publishing position-mode (`HexArmCtrlMode.pos`) commands targeting the configured `arm_stable_pos` and `grip_stable_pos` for **both** arms independently. It waits until all joints of **both** arms are within `arrive_threshold` radians of the target.
 
-4. **Work phase** — Once both arms have arrived at the stable position, the template switches to compensation mode (`HexArmCtrlMode.comp`), publishing zero-vector commands each cycle for each arm. This keeps both arms in a gravity-compensated, freely movable state, ready for dual-arm teleoperation or autonomous manipulation.
+4. **Work phase** — Once both arms have arrived at the stable position, the node switches to compensation mode (`HexArmCtrlMode.comp`), computing gravity compensation torques via Jacobian transpose from `HexDynUtilY6` dynamics per arm. The extra torque `tau = J^T * (-mass * gravity)` is published each cycle, keeping both arms in a gravity-compensated, freely movable state.
 
-5. **Exit phase** — When the `q` key is pressed (detected by the teleop thread) or `Ctrl+C` is received, the template re-enters the position-mode control loop, driving both arms back to `arm_stable_pos` / `grip_stable_pos` before stopping the node. This ensures a safe, repeatable shutdown.
+5. **Exit phase** — When the `q` key is pressed (detected by the teleop thread) or `Ctrl+C` is received, the node re-enters the position-mode control loop, driving both arms back to `arm_stable_pos` / `grip_stable_pos` before stopping the node. This ensures a safe, repeatable shutdown.
 
-This architecture decouples the template's lifecycle logic from the underlying robot hardware interface — the template interacts solely through Zenoh topics, making it compatible with both real E3 Desktop hardware and MuJoCo simulation without code changes.
+This architecture decouples the node's lifecycle logic from the underlying robot hardware interface — the node interacts solely through Zenoh topics, making it compatible with both real E3 Desktop hardware and MuJoCo simulation without code changes.
 
 # 📄 License
 
@@ -587,10 +591,10 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 # 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hexfellow/hex_flow_template_e3_desktop&type=Date)](https://star-history.com/#hexfellow/hex_flow_template_e3_desktop&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=hexfellow/hex_flow_comp_e3_desktop&type=Date)](https://star-history.com/#hexfellow/hex_flow_comp_e3_desktop&Date)
 
 # 👥 Contributors
 
-<a href="https://github.com/hexfellow/hex_flow_template_e3_desktop/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=hexfellow/hex_flow_template_e3_desktop" />
+<a href="https://github.com/hexfellow/hex_flow_comp_e3_desktop/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=hexfellow/hex_flow_comp_e3_desktop" />
 </a>

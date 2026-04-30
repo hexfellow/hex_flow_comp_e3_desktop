@@ -6,8 +6,14 @@
 # Date  : 2026-04-28
 ################################################################
 
-from .config_default import default_template_e3_desktop_node
+from .comp_e3_desktop import HexFlowCompE3Desktop
 
-__all__ = [
-    "default_template_e3_desktop_node",
-]
+
+def main():
+    comp = HexFlowCompE3Desktop()
+    comp.start()
+    comp.run()
+
+
+if __name__ == "__main__":
+    main()

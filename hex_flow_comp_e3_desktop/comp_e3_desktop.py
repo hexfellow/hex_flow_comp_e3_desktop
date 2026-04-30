@@ -17,15 +17,19 @@ from hex_util_msg.builder_robot import (build_hex_arm_ctrl,
                                         build_hex_grip_ctrl,
                                         parse_hex_arm_state)
 from hex_util_msg.builder_teleop import parse_hex_teleop_keyboard
+from hex_util_msg.builder_basic import build_hex_bool
+from hex_util_urdf import HEXARM_URDF_PATH_DICT
+from hex_util_robot import HexDynUtilY6
 
 
-class HexFlowTemplateE3Desktop:
+class HexFlowCompE3Desktop:
 
-    def __init__(self, name: str = "template_e3_desktop"):
+    def __init__(self, name: str = "comp_e3_desktop"):
         self.__name = name
         self.__node = Node(self.__name)
         self.__node.start()
         self.__init_params()
+        self.__init_vars()
         self.__init_subs()
         self.__init_pubs()
         self.__init_threads()
@@ -42,11 +46,25 @@ class HexFlowTemplateE3Desktop:
         self.__grip_kd = get_env_ndarray("GRIP_KD", "0.5")
         self.__arrive_threshold = get_env_float("ARRIVE_THRESHOLD", 0.06)
         self.__err_threshold = get_env_float("ERR_THRESHOLD", 0.02)
+        self.__extra_mass = get_env_float("EXTRA_MASS", 0.1)
+
+    def __init_vars(self):
+        self.__dyn_util_left = HexDynUtilY6(
+            model_path=HEXARM_URDF_PATH_DICT["archer_y6_empty"],
+            pose_end_in_flange=np.array([0.02, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]),
+        )
+        self.__dyn_util_right = HexDynUtilY6(
+            model_path=HEXARM_URDF_PATH_DICT["archer_y6_empty"],
+            pose_end_in_flange=np.array([0.02, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]),
+        )
+        self.__extra_force = -self.__dyn_util_left.get_gravity(
+        ) * self.__extra_mass
 
     def __init_pubs(self):
         for side in ("left", "right"):
             self.__node.create_pub(f"{side}_arm_ctrl")
             self.__node.create_pub(f"{side}_grip_ctrl")
+        self.__node.create_pub("record")
 
     def __init_subs(self):
         for side in ("left", "right"):
@@ -86,7 +104,8 @@ class HexFlowTemplateE3Desktop:
     # Work Related Functions
     ##############################################################
     def __teleop_process(self):
-        prev_q = 0
+        prev_q, prev_s = 0, 0
+        is_record = False
         rate = HexRate(100.0)
         while self.__is_running():
             rate.sleep()
@@ -96,11 +115,19 @@ class HexFlowTemplateE3Desktop:
                 continue
 
             keys = parse_hex_teleop_keyboard(data)
-            curr_q = keys["key_q"]
+            curr_q, curr_s = keys["key_q"], keys["key_s"]
             if curr_q and not prev_q:
                 self.__node.info(f"[{self.__name}]: Stop and exit")
                 self.__stop_event.set()
-            prev_q = curr_q
+            if curr_s and not prev_s:
+                is_record = not is_record
+                self.__node.pub("record",
+                                build_hex_bool(ts_ns=ns_now(), data=is_record))
+                if is_record:
+                    self.__node.info(f"[{self.__name}]: Start recording")
+                else:
+                    self.__node.info(f"[{self.__name}]: Stop recording")
+            prev_q, prev_s = curr_q, curr_s
 
     def __init_process(self):
         try:
@@ -196,19 +223,28 @@ class HexFlowTemplateE3Desktop:
         while self.__is_running():
             rate.sleep()
 
-            for side in ("left", "right"):
-                self.__node.pub(
-                    f"{side}_arm_ctrl",
-                    build_hex_arm_ctrl(
-                        ts_ns=ns_now(),
-                        ctrl_mode=HexArmCtrlMode.comp,
-                        jnt_pos=np.zeros(6),
-                        jnt_vel=np.zeros(6),
-                        mit_tau=np.zeros(6),
-                        mit_kp=np.zeros(6),
-                        mit_kd=np.zeros(6),
-                    ),
-                )
+            for side, dyn_util in (("left", self.__dyn_util_left),
+                                   ("right", self.__dyn_util_right)):
+                data = self.__node.get(f"{side}_arm_state", latest=True)
+                if data is not None:
+                    state = parse_hex_arm_state(data)
+                    q, dq = state["jnt_pos"], state["jnt_vel"]
+                    jac = dyn_util.dynamic_params(q, dq,
+                                                  base_frame=True)[3][:3, :6]
+                    extra_tau = jac.T @ self.__extra_force
+
+                    self.__node.pub(
+                        f"{side}_arm_ctrl",
+                        build_hex_arm_ctrl(
+                            ts_ns=ns_now(),
+                            ctrl_mode=HexArmCtrlMode.comp,
+                            jnt_pos=np.zeros(6),
+                            jnt_vel=np.zeros(6),
+                            mit_tau=extra_tau,
+                            mit_kp=np.zeros(6),
+                            mit_kd=np.zeros(6),
+                        ),
+                    )
                 self.__node.pub(
                     f"{side}_grip_ctrl",
                     build_hex_grip_ctrl(

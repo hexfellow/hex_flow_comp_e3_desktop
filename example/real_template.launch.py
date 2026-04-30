@@ -9,14 +9,14 @@
 from hex_flow_core import LaunchConfig
 from hex_flow_node_robot import default_robot_archer_y6_node
 from hex_flow_node_teleop import default_teleop_keyboard_node
-from hex_flow_node_camera import default_cam_berxel_node, default_cam_usb_node
-from hex_flow_template_e3_desktop import default_template_e3_desktop_node
+from hex_flow_node_data import default_data_record_node
+from hex_flow_comp_e3_desktop import default_comp_e3_desktop_node
 
 config = LaunchConfig(
     local_only=True,
     enable_tui=True,
     log_to_file=True,
-    save_path="/tmp/real_template.yml",
+    save_path="/tmp/real_comp.yml",
 )
 
 nodes = {
@@ -30,7 +30,7 @@ nodes = {
         ctrl_rate=500,
         state_buffer_size=200,
         sens_ts=True,
-        grip_type="gp80",
+        grip_type="gp80_handle",
         pose_end_in_flange="0.187,0.0,0.0,1.0,0.0,0.0,0.0",
         required=True,
         hidden=True,
@@ -51,7 +51,7 @@ nodes = {
         ctrl_rate=500,
         state_buffer_size=200,
         sens_ts=True,
-        grip_type="gp80",
+        grip_type="gp80_handle",
         pose_end_in_flange="0.187,0.0,0.0,1.0,0.0,0.0,0.0",
         required=True,
         hidden=True,
@@ -71,14 +71,15 @@ nodes = {
         hidden=True,
         remap_dict={"teleop_keyboard": "teleop_keyboard/teleop_keyboard"},
     ),
-    "template_e3_desktop":
-    default_template_e3_desktop_node(
-        name="template_e3_desktop",
+    "comp_e3_desktop":
+    default_comp_e3_desktop_node(
+        name="comp_e3_desktop",
         rate_hz=500.0,
         arm_stable_pos="0.0,-1.5,3.0,0.07,0.0,0.0",
         grip_stable_pos="0.5",
         arrive_threshold=0.06,
         err_threshold=0.02,
+        extra_mass=0.25,
         required=True,
         hidden=False,
         remap_dict={
@@ -91,6 +92,27 @@ nodes = {
             "left_grip_ctrl": "left_archer_y6/grip_ctrl",
             "right_grip_ctrl": "right_archer_y6/grip_ctrl",
             "keys": "teleop_keyboard/teleop_keyboard",
+            "record": "comp_e3_desktop/record",
+        },
+    ),
+    "data_record":
+    default_data_record_node(
+        name="data_record",
+        record_path="/tmp/record_data",
+        foxglove_host="127.0.0.1",
+        foxglove_port=8765,
+        start_cnt=0,
+        required=False,
+        remap_dict={
+            "left_arm_state": "left_archer_y6/arm_state",
+            "right_arm_state": "right_archer_y6/arm_state",
+            "left_grip_state": "left_archer_y6/grip_state",
+            "right_grip_state": "right_archer_y6/grip_state",
+            "left_arm_ctrl": "left_archer_y6/arm_ctrl",
+            "right_arm_ctrl": "right_archer_y6/arm_ctrl",
+            "left_grip_ctrl": "left_archer_y6/grip_ctrl",
+            "right_grip_ctrl": "right_archer_y6/grip_ctrl",
+            "record": "comp_e3_desktop/record",
         },
     ),
 }
