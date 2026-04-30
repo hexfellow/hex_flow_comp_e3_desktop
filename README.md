@@ -228,10 +228,6 @@ nodes = {
             "right_arm_state": "right_archer_y6/arm_state",
             "left_grip_state": "left_archer_y6/grip_state",
             "right_grip_state": "right_archer_y6/grip_state",
-            "left_arm_ctrl": "left_archer_y6/arm_ctrl",
-            "right_arm_ctrl": "right_archer_y6/arm_ctrl",
-            "left_grip_ctrl": "left_archer_y6/grip_ctrl",
-            "right_grip_ctrl": "right_archer_y6/grip_ctrl",
             "record": "comp_e3_desktop/record",
         },
     ),
@@ -334,10 +330,6 @@ nodes = {
             "right_arm_state": "mujoco_e3_desktop/right_arm_state",
             "left_grip_state": "mujoco_e3_desktop/left_grip_state",
             "right_grip_state": "mujoco_e3_desktop/right_grip_state",
-            "left_arm_ctrl": "mujoco_e3_desktop/left_arm_ctrl",
-            "right_arm_ctrl": "mujoco_e3_desktop/right_arm_ctrl",
-            "left_grip_ctrl": "mujoco_e3_desktop/left_grip_ctrl",
-            "right_grip_ctrl": "mujoco_e3_desktop/right_grip_ctrl",
             "record": "comp_e3_desktop/record",
         },
     ),
@@ -479,10 +471,6 @@ nodes:
       right_arm_state: right_archer_y6/arm_state
       left_grip_state: left_archer_y6/grip_state
       right_grip_state: right_archer_y6/grip_state
-      left_arm_ctrl: left_archer_y6/arm_ctrl
-      right_arm_ctrl: right_archer_y6/arm_ctrl
-      left_grip_ctrl: left_archer_y6/grip_ctrl
-      right_grip_ctrl: right_archer_y6/grip_ctrl
       record: comp_e3_desktop/record
     env:
       RECORD_PATH: "example/record_data"
@@ -568,10 +556,6 @@ nodes:
       right_arm_state: mujoco_e3_desktop/right_arm_state
       left_grip_state: mujoco_e3_desktop/left_grip_state
       right_grip_state: mujoco_e3_desktop/right_grip_state
-      left_arm_ctrl: mujoco_e3_desktop/left_arm_ctrl
-      right_arm_ctrl: mujoco_e3_desktop/right_arm_ctrl
-      left_grip_ctrl: mujoco_e3_desktop/left_grip_ctrl
-      right_grip_ctrl: mujoco_e3_desktop/right_grip_ctrl
       record: comp_e3_desktop/record
     env:
       RECORD_PATH: "example/record_data"
